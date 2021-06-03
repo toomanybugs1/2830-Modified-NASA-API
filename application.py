@@ -23,6 +23,7 @@ from flask import request, jsonify, render_template, Flask, current_app
 from flask_cors import CORS
 from apod.utility import parse_apod, get_concepts
 import logging
+import xmlify
 
 #### added by justin for EB
 #from wsgiref.simple_server import make_server
@@ -38,7 +39,7 @@ logging.basicConfig(level=logging.DEBUG)
 # assorted libraries
 SERVICE_VERSION = 'v1'
 APOD_METHOD_NAME = 'apod'
-ALLOWED_APOD_FIELDS = ['concept_tags', 'date', 'hd', 'count', 'start_date', 'end_date', 'thumbs']
+ALLOWED_APOD_FIELDS = ['concept_tags', 'date', 'hd', 'count', 'start_date', 'end_date', 'thumbs', 'api_key']
 ALCHEMY_API_KEY = None
 
 try:
@@ -144,7 +145,7 @@ def _get_json_for_date(input_date, use_concept_tags, thumbs):
     data['service_version'] = SERVICE_VERSION
 
     # return info as JSON
-    return jsonify(data)
+    return xmlify.dumps(data)
 
 
 def _get_json_for_random_dates(count, use_concept_tags, thumbs):
@@ -177,7 +178,7 @@ def _get_json_for_random_dates(count, use_concept_tags, thumbs):
         if len(all_data) >= count:
             break
 
-    return jsonify(all_data)
+    return xmlify.dumps(all_data)
 
 
 def _get_json_for_date_range(start_date, end_date, use_concept_tags, thumbs):
@@ -231,7 +232,7 @@ def _get_json_for_date_range(start_date, end_date, use_concept_tags, thumbs):
         start_ordinal += 1
 
     # return info as JSON
-    return jsonify(all_data)
+    return xmlify.dumps(all_data)
 
 
 #
@@ -268,15 +269,19 @@ def apod():
         end_date = args.get('end_date')
         use_concept_tags = args.get('concept_tags', False)
         thumbs = args.get('thumbs', False)
+        api_key = args.get('api_key')
+        
+        if not api_key:
+            return _abort(400, 'Bad Request: no API key provided.')
 
         if not count and not start_date and not end_date:
-            return _get_json_for_date(input_date, use_concept_tags, thumbs)
+            return _get_json_for_date(input_date, use_concept_tags, thumbs), 200, {"Content-Type" : "text/xml"}
 
         elif not input_date and not start_date and not end_date and count:
-            return _get_json_for_random_dates(int(count), use_concept_tags, thumbs)
+            return _get_json_for_random_dates(int(count), use_concept_tags, thumbs), 200, {"Content-Type" : "text/xml"}
 
         elif not count and not input_date and start_date:
-            return _get_json_for_date_range(start_date, end_date, use_concept_tags, thumbs)
+            return _get_json_for_date_range(start_date, end_date, use_concept_tags, thumbs), 200, {"Content-Type" : "text/xml"}
 
         else:
             return _abort(400, 'Bad Request: invalid field combination passed.')
@@ -312,4 +317,4 @@ def application_error(e):
 
 
 if __name__ == '__main__':
-    application.run('0.0.0.0', port=5000)
+    application.run('0.0.0.0', port=5000, ssl_context=('/home/ubuntu/apod-api/fullchain.pem', '/home/ubuntu/apod-api/privkey.pem'))
